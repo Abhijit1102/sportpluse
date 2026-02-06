@@ -58,7 +58,7 @@ export const createMatchSchema = z
       ctx.addIssue({
         path: ["endTime"],
         message: "endTime must be after startTime",
-        code: z.ZodIssueCode.custom,
+        code: "custom",
       });
     }
   });
