@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { desc } from "drizzle-orm";
 import { db } from "../db/db.js";
 import { getMatchStatus } from "../utils/match-status.js";
 import { createMatchSchema, listMatchesQuerySchema } from "../validation/matches.js";
@@ -13,7 +14,7 @@ matchRouter.get("/", async (req, res) => {
     if (!parsed.success) {
         return res.status(400).json({
             error: "Invalid payload",
-            details: parsed.error.errors
+            details: parsed.error.issues
         });
     }
 
@@ -23,7 +24,7 @@ matchRouter.get("/", async (req, res) => {
         const data = await db
             .select()
             .from(matches)
-            .orderBy(matches.createdAt, 'desc')
+            .orderBy(desc(matches.createdAt))
             .limit(limit);
 
         res.json({ data });
@@ -31,7 +32,7 @@ matchRouter.get("/", async (req, res) => {
         console.error(error);
         res.status(500).json({
             error: "Failed to list matches.",
-            details: error.message
+            details: error.issues
         });
     }
 });
@@ -44,11 +45,11 @@ matchRouter.post("/", async (req, res) => {
     if (!parsed.success) {
         return res.status(400).json({
             error: "Invalid payload",
-            details: parsed.error.errors
+            details: parsed.error.issues
         });
     }
 
-    const { startTime, endTime, homeScore = 0, awayScore = 0, ...rest } = parsed.data;
+    const { startTime, endTime, homeScore, awayScore, ...rest } = parsed.data;
 
     try {
         const [event] = await db.insert(matches).values({
@@ -60,12 +61,15 @@ matchRouter.post("/", async (req, res) => {
             status: getMatchStatus(startTime, endTime)
         }).returning();
 
+        if(res.app.locals.broadCastMatchCreated) {
+            res.app.locals.broadCastMatchCreated(event);
+        }
+
         res.status(201).json({ data: event });
     } catch (error) {
         console.error(error); 
         return res.status(500).json({
             error: "Failed to create a match.",
-            details: error.message
         });
     }
 });
